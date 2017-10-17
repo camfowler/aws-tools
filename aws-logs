@@ -1,0 +1,203 @@
+#!/usr/bin/env ruby
+
+require 'json'
+
+trap("QUIT") { shutdown }
+trap("TERM") { shutdown }
+trap("INT") { shutdown }
+
+def shutdown
+  puts "Received exit, shutting down"
+  exit
+end
+
+
+USAGE="Usage: aws-logs <log group searches...> <stream name search>
+Will tail all streams for all log groups matching each name.
+
+EXAMPLES
+
+aws-logs identity dev
+aws-logs product identity dev
+aws-logs account
+"
+
+if ARGV.empty? || ARGV.count < 1
+  puts USAGE
+  exit
+end
+
+
+
+
+
+
+class LogGroup
+
+  # Returns an array of log-group names. Takes an array of search terms to
+  # match against.
+  # e.g.
+  #
+  #   ["awslogs-identity-service"]
+  #
+  def self.search(search_terms)
+    log_group_matches = []
+    log_groups = JSON.parse `aws logs describe-log-groups`
+    log_groups['logGroups'].each do |log_group|
+      if log_group['logGroupName'] =~ /#{search_terms.join '|'}/i
+        log_group_matches.push log_group['logGroupName']
+      end
+    end
+    log_group_matches
+  end
+
+end
+
+class LogStream
+
+  attr_accessor :log_stream_name
+
+  def initialize(log_group_name:, log_stream_name:)
+    @log_group_name = log_group_name
+    @log_stream_name = log_stream_name
+    @next_forward_token = nil
+  end
+
+  def new_stream?
+    !@next_forward_token
+  end
+
+  def to_s
+    @log_stream_name
+  end
+
+  def fetch_log_events
+    response = if @next_forward_token
+      `aws logs get-log-events --log-group-name #@log_group_name --log-stream-name #@log_stream_name --next-token #@next_forward_token`
+    else
+      `aws logs get-log-events --log-group-name #@log_group_name --log-stream-name #@log_stream_name --limit 100`
+    end
+    response = JSON.parse response
+    @next_forward_token = response["nextForwardToken"]
+
+    log_events = response["events"].collect do |event|
+      LogEvent.new(
+        log_group_name: @log_group_name,
+        log_stream_name: @log_stream_name,
+        message: event["message"],
+        timestamp: Time.at(event["timestamp"]),
+        ingestion_time: Time.at(event["ingestionTime"])
+      )
+    end
+    log_events.sort
+  end
+
+  def self.search(log_group_names, search_term=nil)
+    last_day = Time.now - (60*60*24)
+
+    log_stream_matches = []
+    log_group_names.each do |log_group_name|
+      recent_log_streams = JSON.parse `aws logs describe-log-streams --log-group-name #{log_group_name} --order-by LastEventTime --max-items 10 --descending`
+      recent_log_streams['logStreams'].each do |log_stream|
+
+        last_event = Time.at log_stream['lastEventTimestamp']/1000
+
+        log_stream_names = log_stream_matches.collect do |ls|
+          ls.log_stream_name.split('/')[0...-1]
+        end
+
+        next unless(
+          (last_event > last_day) &&
+          (log_stream['logStreamName'] =~ /#{search_term}/i) &&
+          (!log_stream_names.include?(log_stream['logStreamName'].split('/')[0...-1]))
+        )
+
+        log_stream_matches.push(self.new(
+          log_group_name: log_group_name,
+          log_stream_name: log_stream['logStreamName']
+        ))
+      end
+    end
+    log_stream_matches
+  end
+
+end
+
+class LogEvent
+
+  attr_accessor :timestamp
+
+  def initialize(log_group_name:, log_stream_name:, message:, timestamp:, ingestion_time:)
+    @log_group_name = log_group_name
+    @log_stream_name = log_stream_name
+    @message = message
+    @timestamp = timestamp
+    @ingestion_time = ingestion_time
+  end
+
+  def pretty_log_stream_name
+    @log_stream_name.split('/')[0...-1].join('/')
+  end
+
+  def to_s
+    "\e[32m#@log_group_name \e[33m#{pretty_log_stream_name} \e[39m#@message"
+  end
+
+  def <=>(log_event)
+    @timestamp <=> log_event.timestamp
+  end
+
+end
+
+
+PROGRESS_STATES = %w[\\ | / -]
+def progress_indicator
+  current_index = PROGRESS_STATES.index(@_progress_indicator) || -1
+  new_index = (current_index + 1) % PROGRESS_STATES.count
+  @_progress_indicator = PROGRESS_STATES[new_index]
+end
+
+
+if ARGV.count > 1
+  log_group_search_terms = ARGV[0...-1]
+  log_stream_search_term = ARGV.last
+else
+  log_group_search_terms = ARGV[0..0]
+  log_stream_search_term = nil
+end
+
+log_groups = LogGroup.search(log_group_search_terms)
+puts "Found Log Groups: #{log_groups.join ', '}"
+
+log_streams = []
+while log_streams.empty?
+  log_streams = LogStream.search(log_groups, log_stream_search_term)
+  if log_streams.empty?
+    print "No Log Streams with events in the last 24 hours, retrying. #{progress_indicator}\r"
+    sleep 2
+  else
+    puts "Found Log Streams: #{log_streams.join ', '}"
+  end
+end
+
+while true
+  log_streams.each do |log_stream|
+    puts log_stream.fetch_log_events
+  end
+
+  # iterate through the updated log streams, but keep the old object if there
+  # is alread a history for it.
+  new_log_streams = []
+  LogStream.search(log_groups, log_stream_search_term).each do |log_stream|
+    existing_log_stream = log_streams.find {|ls| ls.log_stream_name == log_stream.log_stream_name }
+    new_log_streams.push(existing_log_stream || log_stream)
+  end
+  log_streams = new_log_streams
+
+  new_streams = log_streams.select(&:new_stream?)
+  unless new_streams.empty?
+    puts "Discovered new Log Streams: #{new_streams.collect(&:log_stream_name).join(", ")}"
+  end
+
+  sleep 1
+end
