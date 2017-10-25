@@ -100,6 +100,8 @@ class LogStream
       recent_log_streams = JSON.parse `aws logs describe-log-streams --log-group-name #{log_group_name} --order-by LastEventTime --max-items 10 --descending`
       recent_log_streams['logStreams'].each do |log_stream|
 
+        # The log stream must have some events in it to be useful.
+        next unless log_stream['lastEventTimestamp']
         last_event = Time.at log_stream['lastEventTimestamp']/1000
 
         log_stream_names = log_stream_matches.collect do |ls|
