@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+hosted_zone_ids=$(aws route53 list-hosted-zones | jq -r '.HostedZones[].Id')
+
+resource_set_names=""
+for hosted_zone_id in $hosted_zone_ids; do
+  # aws route53 list-resource-record-sets --hosted-zone-id /hostedzone/Z3M9S1PZ3W9BAX | jq -r '.ResourceRecordSets[].Name'
+  resource_set_names+=$(aws route53 list-resource-record-sets --hosted-zone-id "$hosted_zone_id" | jq -r '.ResourceRecordSets[].Name')
+done
+
+echo "$resource_set_names" | sort -u

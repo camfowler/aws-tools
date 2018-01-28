@@ -1,0 +1,35 @@
+#!/bin/bash
+
+USAGE="Usage: ecs-image-versions <search term>...
+Will print versions for each service listed. The term provided will try and match against task definition family names.
+
+EXAMPLES
+
+ecs-image-versions product-service
+ecs-image-versions product store
+"
+
+searchterms=($@)
+
+if [ -z "${searchterms[*]}" ]
+then
+  echo "$USAGE"
+  exit
+fi
+
+families=$(aws ecs list-task-definition-families)
+
+matchedfamilies=()
+for searchterm in "${searchterms[@]}"; do
+  matchedfamilies+=($(grep "$searchterm" <<< "$families" | tr -d '", '))
+done
+
+maxfamilylength=0
+for family in "${matchedfamilies[@]}"; do
+  ((${#family} > maxfamilylength)) && maxfamilylength=${#family}
+done
+
+for family in "${matchedfamilies[@]}"; do
+  image=$(aws ecs describe-task-definition --task-definition "$family" | grep "image" | sed -E 's/.*"image": "(.*)".*/\1/' | uniq)
+  printf "%${maxfamilylength}s: $image\n" "$family"
+done

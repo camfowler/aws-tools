@@ -1,0 +1,32 @@
+#!/bin/bash
+
+USAGE="Usage: ecr-latest <search term>...
+Will print docker image versions for each service listed. The term provided will try and match against task definition family names.
+
+EXAMPLES
+
+ecr-latest product
+ecr-latest product store
+"
+
+searchterms=($@)
+
+if [ -z "${searchterms[*]}" ]
+then
+  echo "$USAGE"
+  exit
+fi
+
+repository_names=$(aws ecr describe-repositories | jq -r '.repositories[].repositoryName')
+
+matched_repository_names=()
+for searchterm in "${searchterms[@]}"; do
+  matched_repository_names+=($(grep "$searchterm" <<< "$repository_names"))
+done
+
+for repository_name in "${matched_repository_names[@]}"; do
+  image_ids=$(aws ecr list-images --repository-name "$repository_name" | jq -r '.imageIds[]')
+  latest_image_digest=$(echo "$image_ids" | jq -r 'select(.imageTag=="latest").imageDigest')
+  latest_image_tag=$(echo "$image_ids" | jq -r "select(.imageDigest==\"$latest_image_digest\").imageTag" | grep -v "latest")
+  echo "$repository_name:$latest_image_tag"
+done
