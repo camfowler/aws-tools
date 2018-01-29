@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+set -e
+
+USAGE="Usage: ecs-ssh [service-name] [env]
+Will give a shell exec'ed inside a currently running container.
+
+EXAMPLES
+
+ecs-ssh customer-builder dev
+ecs-ssh product-service accp
+"
+
+CONFIG_TEMPLATE='# ssh-ecs configuration:
+# Set this to force a specific user to be used when SSHing into the AWS ec2 host.
+SSH_USER="ec2-user"
+
+# The output of SSH_OPTIONS_FUNCTION will be appended to the ssh call.  The
+# function will be passed the "env" in use, so the function can dynamically set
+# options based on the environment used. This can be useful for setting a
+# Bastion jump box for example.
+#
+# E.g.
+#
+# function SSH_OPTIONS_FUNCTION () {
+#   env="$1"
+#   echo "-J $env-bastion"
+# }
+'
+
+service=$1
+env=$2
+
+if [ -z "$env" ]
+then
+  echo "$USAGE"
+  exit
+fi
+
+CONFIG="$HOME/.ecs-sshrc"
+if [ -f "$CONFIG" ]
+then
+  # shellcheck source=$CONFIG
+  source "$CONFIG"
+else
+  echo "$CONFIG_TEMPLATE" > "$CONFIG"
+  echo "Created config: $CONFIG"
+  exit
+fi
+
+cluster=$(aws ecs list-clusters | jq -r '.clusterArns[]' | grep -i "$env" | head -n 1)
+if [ -z "$cluster" ]
+then
+  echo "No cluster found"
+  exit
+fi
+echo "$cluster"
+
+container_instance=$(aws ecs list-container-instances --cluster "$cluster" --filter "task:group == service:$service" | jq -r 'first(.containerInstanceArns[])')
+if [ -z "$container_instance" ]
+then
+  echo "No container instance found"
+  exit
+fi
+echo "$container_instance"
+ec2_instance_id=$(aws ecs describe-container-instances --cluster "$cluster" --container-instances "$container_instance" | jq -r 'first(.containerInstances[].ec2InstanceId)')
+echo "$ec2_instance_id"
+ip_address=$(aws ec2 describe-instances --instance-ids "$ec2_instance_id" | jq -r 'first(.Reservations[].Instances[].PrivateIpAddress)')
+
+if [ -n "$(type -t SSH_OPTIONS_FUNCTION)" ]
+then
+  additional_ssh_options=$(SSH_OPTIONS_FUNCTION "$env")
+fi
+echo "ssh $SSH_USER@$ip_address $additional_ssh_options"
+ssh "$SSH_USER@$ip_address" -tt $additional_ssh_options "docker exec -it \$(docker ps | grep $service | sed \"s/\\(^[^ ]*\\).*/\\1/\") bash"
