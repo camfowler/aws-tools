@@ -142,7 +142,7 @@ class LogEvent
   end
 
   def to_s
-    "\e[32m#@log_group_name \e[33m#{pretty_log_stream_name} \e[34m#{@timestamp.strftime("%H:%m:%S")} \e[39m#@message"
+    "\e[32m#@log_group_name \e[33m#{pretty_log_stream_name} \e[34m#{@timestamp.strftime("%H:%M:%S")} \e[39m#@message"
   end
 
   def <=>(log_event)
