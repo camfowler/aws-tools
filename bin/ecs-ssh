@@ -74,4 +74,4 @@ then
   additional_ssh_options=$(SSH_OPTIONS_FUNCTION "$env")
 fi
 echo "ssh $SSH_USER@$ip_address $additional_ssh_options"
-ssh "$SSH_USER@$ip_address" -tt $additional_ssh_options "docker exec -it \$(docker ps | grep $service | sed \"s/\\(^[^ ]*\\).*/\\1/\") bash"
+ssh "$SSH_USER@$ip_address" -tt $additional_ssh_options "docker exec -it \$(docker ps | grep $service | sed \"s/\\(^[^ ]*\\).*/\\1/\" | head -1) bash"
