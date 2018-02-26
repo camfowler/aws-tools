@@ -14,6 +14,7 @@ echo 'export PATH="$PATH:$HOME/src/aws-tools/bin"' >> ~/.bashrc
 
 - Some version of ruby is required for `aws-logs` Probably 2.x
 - `aws-cli` installed and configured.
+- `jq`. Install via your package manager of choice or [https://stedolan.github.io/jq]
 
 ## Help
 

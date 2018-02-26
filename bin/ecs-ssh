@@ -5,6 +5,8 @@ set -e
 USAGE="Usage: ecs-ssh [service-name] [env]
 Will give a shell exec'ed inside a currently running container.
 
+Configuration found at ~/.ecs-sshrc
+
 EXAMPLES
 
 ecs-ssh customer-builder dev
