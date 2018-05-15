@@ -7,19 +7,9 @@ instance_name="$1"
 # TODO provide an arg for this
 instance_number="1"
 
-EC2_INSTANCE_DATA=$(aws ec2 describe-instances)
-PUBLIC_HOSTS=$(echo "$EC2_INSTANCE_DATA" | jq -r '.Reservations[].Instances[] | select(.PublicIpAddress) | .Tags[] | select(.Key=="Name") | .Value' | sort | uniq)
-if [ -z "$PUBLIC_HOSTS" ]
-then
-  echo "No public hosts found"
-  exit
-fi
-
-function find_host() {
-  echo "$EC2_INSTANCE_DATA" | jq --arg instance_name "$1" -r '.Reservations[].Instances[] | select(.Tags[] | .Key=="Name" and .Value==$instance_name)'
-}
-public_ip_address=$(find_host "$instance_name" | jq -r '.PublicIpAddress' | sed -n "${instance_number}p")
-private_ip_address=$(find_host "$instance_name" | jq -r '.PrivateIpAddress' | sed -n "${instance_number}p")
+EC2_INSTANCE_DATA=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$instance_name")
+public_ip_address=$(echo "$EC2_INSTANCE_DATA" | jq -r '.Reservations[].Instances[].PublicIpAddress' | sed -n "${instance_number}p")
+private_ip_address=$(echo "$EC2_INSTANCE_DATA" | jq -r '.Reservations[].Instances[].PrivateIpAddress' | sed -n "${instance_number}p")
 
 if [ "$public_ip_address" != "null" ]
 then
