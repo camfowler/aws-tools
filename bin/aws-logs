@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 
 require 'json'
+require 'logger'
+
+LOGGER = Logger.new(STDOUT)
+LOGGER.level = Logger::INFO
 
 trap("QUIT") { shutdown }
 trap("TERM") { shutdown }
@@ -55,7 +59,7 @@ end
 
 class LogStream
 
-  attr_accessor :log_stream_name
+  attr_accessor :log_stream_name, :log_group_name
 
   def initialize(log_group_name:, log_stream_name:)
     @log_group_name = log_group_name
@@ -69,6 +73,11 @@ class LogStream
 
   def to_s
     @log_stream_name
+  end
+
+  def == log_stream
+    self.log_stream_name == log_stream.log_stream_name &&
+      self.log_group_name == log_stream.log_group_name
   end
 
   def fetch_log_events
@@ -93,6 +102,7 @@ class LogStream
   end
 
   def self.search(log_group_names, search_term=nil)
+    LOGGER.debug "Searching with log_group_names: #{log_group_names}"
     last_day = Time.now - (60*60*24)
 
     log_stream_matches = []
@@ -104,16 +114,20 @@ class LogStream
         next unless log_stream['lastEventTimestamp']
         last_event = Time.at log_stream['lastEventTimestamp']/1000
 
-        log_stream_names = log_stream_matches.collect do |ls|
-          ls.log_stream_name.split('/')[0...-1]
+        previous_match_found = log_stream_matches.find do |ls|
+          ls.log_stream_name == log_stream['logStreamName'] &&
+            ls.log_group_name == log_group_name
         end
+        LOGGER.debug "Found previous log stream match: #{previous_match_found.inspect}" if previous_match_found
 
         next unless(
           (last_event > last_day) &&
-          (log_stream['logStreamName'] =~ /#{search_term}/i) &&
-          (!log_stream_names.include?(log_stream['logStreamName'].split('/')[0...-1]))
+          (log_stream['logStreamName'] =~ /#{search_term}/i)
         )
 
+        next if previous_match_found
+
+        LOGGER.debug "Creating log stream with log group: #{log_group_name} log_stream: #{log_stream['logStreamName']}"
         log_stream_matches.push(self.new(
           log_group_name: log_group_name,
           log_stream_name: log_stream['logStreamName']
@@ -137,12 +151,8 @@ class LogEvent
     @ingestion_time = ingestion_time
   end
 
-  def pretty_log_stream_name
-    @log_stream_name.split('/')[0...-1].join('/')
-  end
-
   def to_s
-    "\e[32m#@log_group_name \e[33m#{pretty_log_stream_name} \e[34m#{@timestamp.strftime("%H:%M:%S")} \e[39m#@message"
+    "\e[32m#@log_group_name \e[33m#{@log_stream_name} \e[34m#{@timestamp.strftime("%H:%M:%S")} \e[39m#@message"
   end
 
   def <=>(log_event)
@@ -182,23 +192,29 @@ while log_streams.empty?
   end
 end
 
+last_search_time = Time.now
 while true
+  LOGGER.debug "Current log streams: #{log_streams.inspect}"
   log_streams.each do |log_stream|
     puts log_stream.fetch_log_events
   end
 
-  # iterate through the updated log streams, but keep the old object if there
-  # is alread a history for it.
-  new_log_streams = []
-  LogStream.search(log_groups, log_stream_search_term).each do |log_stream|
-    existing_log_stream = log_streams.find {|ls| ls.log_stream_name == log_stream.log_stream_name }
-    new_log_streams.push(existing_log_stream || log_stream)
-  end
-  log_streams = new_log_streams
 
-  new_streams = log_streams.select(&:new_stream?)
-  unless new_streams.empty?
-    puts "Discovered new Log Streams: #{new_streams.collect(&:log_stream_name).join(", ")}"
+  # If we havn't checked for new streams in a while...
+  if last_search_time + 2*60 < Time.new
+    # iterate through the updated log streams, but keep the old object if there
+    # is alread a history for it.
+    new_log_streams = []
+    LogStream.search(log_groups, log_stream_search_term).each do |log_stream|
+      existing_log_stream = log_streams.find {|ls| ls == log_stream }
+      new_log_streams.push(existing_log_stream || log_stream)
+    end
+    log_streams = new_log_streams
+
+    new_streams = log_streams.select(&:new_stream?)
+    unless new_streams.empty?
+      puts "Discovered new Log Streams: #{new_streams.collect(&:log_stream_name).join(", ")}"
+    end
   end
 
   sleep 1
