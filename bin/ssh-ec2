@@ -4,12 +4,19 @@ set -e
 # TODO provide help docs on how to setup ~/.ssh/config
 
 instance_name="$1"
-# TODO provide an arg for this
-instance_number="1"
+instance_number="$2"
+# Use 1 as the default instance number
+: "${instance_number:=1}"
 
 EC2_INSTANCE_DATA=$(aws ec2 describe-instances --filters "Name=tag:Name,Values=$instance_name")
-public_ip_address=$(echo "$EC2_INSTANCE_DATA" | jq -r '.Reservations[].Instances[].PublicIpAddress' | sed -n "${instance_number}p")
-private_ip_address=$(echo "$EC2_INSTANCE_DATA" | jq -r '.Reservations[].Instances[].PrivateIpAddress' | sed -n "${instance_number}p")
+public_ip_addresses=$(echo "$EC2_INSTANCE_DATA" | jq -r '.Reservations[].Instances[].PublicIpAddress')
+private_ip_addresses=$(echo "$EC2_INSTANCE_DATA" | jq -r '.Reservations[].Instances[].PrivateIpAddress')
+
+# echo "$public_ip_addresses"
+# echo "$private_ip_addresses"
+
+public_ip_address=$( echo "$public_ip_addresses" | sed -n "${instance_number}p")
+private_ip_address=$( echo "$private_ip_addresses" | sed -n "${instance_number}p")
 
 if [ "$public_ip_address" != "null" ]
 then
