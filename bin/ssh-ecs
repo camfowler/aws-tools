@@ -43,9 +43,9 @@ fi
 
 if [ -z "$execute_string" ]
 then
-  execute_string="bash"
+  execute_string="sh"
 else
-  execute_string="bash -c '$execute_string'"
+  execute_string="sh -c '$execute_string'"
 fi
 
 CONFIG="$HOME/.config/ssh-ecs"
@@ -87,7 +87,7 @@ private_ip_address=$(echo "$describe_instance" | jq -r 'first(.Reservations[].In
 
 # if there is a public ip address, use that, otherwise use the private ip
 # address, and assume a bastion is configured in ~/.config/ssh-ecs
-if [ -n "$public_ip_address" ]
+if [ "$public_ip_address" != 'null' ]
 then
   ip_address="$public_ip_address"
 else
