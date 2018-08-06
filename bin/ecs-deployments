@@ -23,12 +23,28 @@ fi
 list_services=$(aws ecs list-services --cluster "$cluster")
 service_names=$(echo "$list_services" | jq -r '.serviceArns[]' | sed 's/[^/]*\///' | grep "$service_search")
 
-describe_services=$(aws ecs describe-services --cluster "$cluster" --services $service_names)
-
-for service_name in $service_names
+while true
 do
-  deployments=$(echo "$describe_services" | jq -r --arg service_name "$service_name"  '.services[] | select(.serviceName==$service_name).deployments')
-  # events=$(echo "$describe_services" | jq -r --arg service_name "$service_name"  '.services[] | select(.serviceName==$service_name).events')
+  describe_services=$(aws ecs describe-services --cluster "$cluster" --services $service_names)
 
-  echo "$deployments" | jq -r --arg service_name "$service_name" '.[] | "\($service_name) \(.status): desired \(.desiredCount), pending \(.pendingCount), running \(.runningCount)"'
+  clear
+  for service_name in $service_names
+  do
+    describe_service=$(echo "$describe_services" | jq -r --arg service_name "$service_name" \
+      '.services[] | select(.serviceName==$service_name)')
+
+    echo "$service_name"
+    echo "$describe_service" | jq -r \
+      '.deployments[] | "\(.status): desired \(.desiredCount), pending \(.pendingCount), running \(.runningCount). \(.taskDefinition | sub("[^/]*\/"; ""))"'
+    echo "$describe_service" | jq -r 'first(.events[]).message'
+    echo
+  done
+
+  sleep 1
+  printf "."
+  sleep 1
+  printf "."
+  sleep 1
+  printf "."
+  sleep 1
 done
