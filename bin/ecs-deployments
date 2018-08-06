@@ -36,7 +36,8 @@ do
     echo "$service_name"
     echo "$describe_service" | jq -r \
       '.deployments[] | "\(.status): desired \(.desiredCount), pending \(.pendingCount), running \(.runningCount). \(.taskDefinition | sub("[^/]*\/"; ""))"'
-    echo "$describe_service" | jq -r 'first(.events[]).message'
+    echo "$describe_service" | jq --arg cols "$(tput cols)" -r \
+      'first(.events[]).message[0:($cols | tonumber)]'
     echo
   done
 
