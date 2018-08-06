@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+set -e
+
+USAGE="Usage: ecs-deployments cluster-name [search-term(s)]"
+
+env=$1; shift 1
+service_search=$*
+
+if [ -z "$env" ]
+then
+  >&2 echo "$USAGE"
+  exit
+fi
+
+cluster=$(aws ecs list-clusters | jq -r '.clusterArns[]' | grep -i "$env" | head -n 1)
+if [ -z "$cluster" ]
+then
+  >&2 echo "No cluster found"
+  exit
+fi
+
+list_services=$(aws ecs list-services --cluster "$cluster")
+service_names=$(echo "$list_services" | jq -r '.serviceArns[]' | sed 's/[^/]*\///' | grep "$service_search")
+
+describe_services=$(aws ecs describe-services --cluster "$cluster" --services $service_names)
+
+for service_name in $service_names
+do
+  deployments=$(echo "$describe_services" | jq -r --arg service_name "$service_name"  '.services[] | select(.serviceName==$service_name).deployments')
+  # events=$(echo "$describe_services" | jq -r --arg service_name "$service_name"  '.services[] | select(.serviceName==$service_name).events')
+
+  echo "$deployments" | jq -r --arg service_name "$service_name" '.[] | "\($service_name) \(.status): desired \(.desiredCount), pending \(.pendingCount), running \(.runningCount)"'
+done
