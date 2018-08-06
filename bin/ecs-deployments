@@ -4,14 +4,14 @@ set -e
 
 USAGE="Usage: ecs-deployments cluster-name [search-term(s)]"
 
-env=$1; shift 1
-service_search=$*
-
-if [ -z "$env" ]
+if [ -z "$1" ]
 then
   >&2 echo "$USAGE"
   exit
 fi
+
+env=$1; shift 1
+service_search=$*
 
 cluster=$(aws ecs list-clusters | jq -r '.clusterArns[]' | grep -i "$env" | head -n 1)
 if [ -z "$cluster" ]
