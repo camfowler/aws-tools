@@ -30,16 +30,16 @@ SSH_USER="ec2-user"
 # }
 '
 
-env=$1
-service=$2
-shift 2;
-execute_string=$*
-
-if [ -z "$env" ]
+if [ -z "$1" ]
 then
   >&2 echo "$USAGE"
   exit
 fi
+
+env=$1
+service=$2
+shift 2;
+execute_string=$*
 
 if [ -z "$execute_string" ]
 then
