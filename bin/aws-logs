@@ -195,10 +195,11 @@ end
 last_search_time = Time.now
 while true
   LOGGER.debug "Current log streams: #{log_streams.inspect}"
+  log_events = []
   log_streams.each do |log_stream|
-    puts log_stream.fetch_log_events
+    log_events.push(log_stream.fetch_log_events)
   end
-
+  puts log_events.sort
 
   # If we havn't checked for new streams in a while...
   if last_search_time + 2*60 < Time.new
