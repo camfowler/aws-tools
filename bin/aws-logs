@@ -195,16 +195,29 @@ end
 last_search_time = Time.now
 while true
   LOGGER.debug "Current log streams: #{log_streams.inspect}"
+
+  # Keep track of the threads
+  threads = []
   log_events = []
   log_streams.each do |log_stream|
-    log_events.push(log_stream.fetch_log_events)
+    thread = Thread.new do
+      log_events.push(log_stream.fetch_log_events)
+    end
+    threads.push(thread)
   end
+
+  # Join on the child processes to allow them to finish
+  threads.each do |thread|
+    thread.join
+  end
+
   puts log_events.sort
 
   # If we havn't checked for new streams in a while...
   if last_search_time + 2*60 < Time.new
-    # iterate through the updated log streams, but keep the old object if there
-    # is alread a history for it.
+    # iterate through the updated log streams, but keep the old object if it
+    # already exists as it contains history log events. Overwriting it would
+    # cause duplicate LogEvent's to be printed as if they were new.
     new_log_streams = []
     LogStream.search(log_groups, log_stream_search_term).each do |log_stream|
       existing_log_stream = log_streams.find {|ls| ls == log_stream }
