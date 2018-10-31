@@ -213,8 +213,9 @@ while true
 
   puts log_events.sort
 
-  # If we havn't checked for new streams in a while...
-  if last_search_time + 2*60 < Time.new
+  # If we havn't checked for new streams in 30 seconds...
+  if last_search_time + 30 < Time.new
+    last_search_time = Time.now
     # iterate through the updated log streams, but keep the old object if it
     # already exists as it contains history log events. Overwriting it would
     # cause duplicate LogEvent's to be printed as if they were new.
