@@ -103,7 +103,7 @@ class LogStream
 
   def self.search(log_group_names, search_term=nil)
     LOGGER.debug "Searching with log_group_names: #{log_group_names}"
-    last_day = Time.now - (60*60*24)
+    last_day = Time.now - (60*5)
 
     log_stream_matches = []
     log_group_names.each do |log_group_name|
@@ -185,7 +185,7 @@ log_streams = []
 while log_streams.empty?
   log_streams = LogStream.search(log_groups, log_stream_search_term)
   if log_streams.empty?
-    print "No Log Streams with events in the last 24 hours, retrying. #{progress_indicator}\r"
+    print "No Log Streams with events in the last 5 minutes, retrying. #{progress_indicator}\r"
     sleep 2
   else
     puts "Found Log Streams: #{log_streams.join ', '}"
