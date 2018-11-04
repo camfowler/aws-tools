@@ -103,16 +103,18 @@ class LogStream
 
   def self.search(log_group_names, search_term=nil)
     LOGGER.debug "Searching with log_group_names: #{log_group_names}"
-    last_day = Time.now - (60*5)
+    last_event_cutoff = Time.now - (60*40)
+    LOGGER.debug "Last event cutoff: #{last_event_cutoff}"
 
     log_stream_matches = []
     log_group_names.each do |log_group_name|
-      recent_log_streams = JSON.parse `aws logs describe-log-streams --log-group-name #{log_group_name} --order-by LastEventTime --max-items 10 --descending`
+      recent_log_streams = JSON.parse `aws logs describe-log-streams --log-group-name #{log_group_name} --order-by LastEventTime --max-items 6 --descending`
       recent_log_streams['logStreams'].each do |log_stream|
 
         # The log stream must have some events in it to be useful.
         next unless log_stream['lastEventTimestamp']
         last_event = Time.at log_stream['lastEventTimestamp']/1000
+        LOGGER.debug "Stream last event: #{last_event}"
 
         previous_match_found = log_stream_matches.find do |ls|
           ls.log_stream_name == log_stream['logStreamName'] &&
@@ -121,7 +123,7 @@ class LogStream
         LOGGER.debug "Found previous log stream match: #{previous_match_found.inspect}" if previous_match_found
 
         next unless(
-          (last_event > last_day) &&
+          (last_event > last_event_cutoff) &&
           (log_stream['logStreamName'] =~ /#{search_term}/i)
         )
 
@@ -185,7 +187,7 @@ log_streams = []
 while log_streams.empty?
   log_streams = LogStream.search(log_groups, log_stream_search_term)
   if log_streams.empty?
-    print "No Log Streams with events in the last 5 minutes, retrying. #{progress_indicator}\r"
+    print "No Log Streams with events in the last 40 minutes, retrying. #{progress_indicator}\r"
     sleep 2
   else
     puts "Found Log Streams: #{log_streams.join ', '}"
