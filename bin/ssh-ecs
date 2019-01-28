@@ -2,15 +2,15 @@
 
 set -e
 
-USAGE="Usage: ecs-ssh [service-name] [env]
+USAGE="Usage: ssh-ecs [env] [service-name]
 Will give a shell exec'ed inside a currently running container.
 
-Configuration found at ~/.ecs-sshrc
+Configuration found at ~/.config/ssh-ecs
 
 EXAMPLES
 
-ecs-ssh dev customer-builder
-ecs-ssh accp product-service
+ssh-ecs dev customer-builder
+ssh-ecs accp product-service
 "
 
 CONFIG_TEMPLATE='# ssh-ecs configuration:

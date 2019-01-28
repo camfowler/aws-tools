@@ -2,8 +2,14 @@
 
 set -e
 
-USAGE="Usage: ecs-deployments cluster-name [search-term(s)]"
+USAGE="Usage: ecs-deployments cluster-name [search-term(s)]
+Will give the details of the service(s) that match the search terms and a readout of the currently deployment status
 
+EXAMPLES
+
+ecs-deployments dev customer
+ecs-deployments accp product
+"
 if [ -z "$1" ]
 then
   >&2 echo "$USAGE"
