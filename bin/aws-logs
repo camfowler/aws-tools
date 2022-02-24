@@ -82,9 +82,9 @@ class LogStream
 
   def fetch_log_events
     response = if @next_forward_token
-      `aws logs get-log-events --log-group-name #@log_group_name --log-stream-name #@log_stream_name --next-token #@next_forward_token`
+      `aws logs get-log-events --log-group-name '#@log_group_name' --log-stream-name '#@log_stream_name' --next-token #@next_forward_token`
     else
-      `aws logs get-log-events --log-group-name #@log_group_name --log-stream-name #@log_stream_name --limit 100`
+      `aws logs get-log-events --log-group-name '#@log_group_name' --log-stream-name '#@log_stream_name' --limit 100`
     end
     response = JSON.parse response
     @next_forward_token = response["nextForwardToken"]
@@ -108,7 +108,7 @@ class LogStream
 
     log_stream_matches = []
     log_group_names.each do |log_group_name|
-      recent_log_streams = JSON.parse `aws logs describe-log-streams --log-group-name #{log_group_name} --order-by LastEventTime --max-items 6 --descending`
+      recent_log_streams = JSON.parse `aws logs describe-log-streams --log-group-name '#{log_group_name}' --order-by LastEventTime --max-items 6 --descending`
       recent_log_streams['logStreams'].each do |log_stream|
 
         # The log stream must have some events in it to be useful.
